@@ -6,3 +6,17 @@ export ANDROID_BUILD_TOP="$PWD"
 ./bionic/libc/kernel/tools/clean_header.py -u \
     "$1/usr/include/asm/signal.h" \
     "$1/usr/include/asm-generic/signal.h"
+
+# bionic's own <sched.h> defines struct sched_param and ALSO includes
+# <linux/sched/types.h>. The kernel's uapi copy defines it too, so when the
+# generated kernel include dir shadows bionic's sanitized uapi copy the two
+# collide:
+#   bionic/libc/include/sched.h:99: error: redefinition of 'sched_param'
+# Bionic solves this by omitting sched_param from its own sanitized copy
+# (bionic/libc/kernel/uapi/linux/sched/types.h has only sched_attr);
+# clean_header.py does NOT do that removal, so do it here. The kernel source
+# header is stock upstream, not vendor-modified, so nothing else is lost.
+SCHED_TYPES="$1/usr/include/linux/sched/types.h"
+if [ -f "$SCHED_TYPES" ]; then
+    sed -i '/^struct sched_param {$/,/^};$/d' "$SCHED_TYPES"
+fi
